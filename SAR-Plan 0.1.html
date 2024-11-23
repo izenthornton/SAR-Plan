@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html>
+<body>
+<h2>SAR-Plan</h2>
+<h3><b>SEARCH AREA AND SUB-AREAS</b></h3>
+<p id="demo"></p>
+<script>
+let userModifiedSaleg = false;
+
+function updateSearchAreaLength() {
+    const fltleg = +document.getElementById("fltleg").value;
+    if (fltleg && !userModifiedSaleg) {
+        document.getElementById("saleg").value = fltleg + 20;
+        checkInputs();
+    }
+}
+
+function handleSalegInput() {
+    userModifiedSaleg = true;
+    checkInputs();
+}
+
+function SegArea() {
+  var segleg = +document.getElementById("segleg").value;
+  var segbase = +document.getElementById("segbase").value;
+  if (segleg === "" || isNaN(segleg)) segleg = 0;
+  if (segbase === "" || isNaN(segbase)) segbase = 0;
+  document.getElementById("segarea").textContent = (segleg * segbase);
+}
+
+function checkInputs() {
+  var fltleg = document.getElementById("fltleg").value;
+  var saleg = document.getElementById("saleg").value;
+  
+  if (fltleg !== "" && saleg !== "") {
+    document.getElementById("hiddenContent").style.display = "block";
+  }
+  updateTotalAndTable();
+}
+
+function calculateEndurance(aircraftNum) {
+  var fuel = +document.getElementById("fuel" + aircraftNum).value;
+  var daylight = +document.getElementById("daylight" + aircraftNum).value;
+  var observer = +document.getElementById("observer" + aircraftNum).value;
+  var speed = +document.getElementById("speed" + aircraftNum).value;
+  
+  if (fuel && daylight && observer) {
+    var minEndurance = Math.min(fuel, daylight, observer);
+    document.getElementById("searchEndurance" + aircraftNum).textContent = 
+      "Search Endurance (Aircraft " + aircraftNum + "): " + minEndurance + " hours";
+    
+    if (speed) {
+      var totalDistance = minEndurance * speed;
+      document.getElementById("searchDistance" + aircraftNum).textContent = 
+        "Total Search Distance (Aircraft " + aircraftNum + "): " + totalDistance + " NM";
+      document.getElementById("searchDistance" + aircraftNum).style.display = "block";
+    }
+    
+    document.getElementById("searchEndurance" + aircraftNum).style.display = "block";
+    updateTotalAndTable();
+  }
+}
+
+function updateTotalAndTable() {
+  let totalMileage = 0;
+  let aircraftDistances = [];
+  const searchAreaLength = +document.getElementById("saleg").value || 0;
+  const aircraftElements = document.querySelectorAll('.aircraft-section');
+  
+  aircraftElements.forEach(element => {
+    const aircraftId = element.id.replace('aircraft', '');
+    const fuel = +document.getElementById("fuel" + aircraftId).value || 0;
+    const daylight = +document.getElementById("daylight" + aircraftId).value || 0;
+    const observer = +document.getElementById("observer" + aircraftId).value || 0;
+    const speed = +document.getElementById("speed" + aircraftId).value || 0;
+    const sruDesignation = document.getElementById("sa/sru" + aircraftId).value || `Aircraft ${aircraftId}`;
+    
+    if (fuel && daylight && observer && speed) {
+      const minEndurance = Math.min(fuel, daylight, observer);
+      const distance = minEndurance * speed;
+      totalMileage += distance;
+      aircraftDistances.push({
+        number: aircraftId,
+        distance: distance,
+        designation: sruDesignation
+      });
+    }
+  });
+  
+  document.getElementById("totalMileage").textContent = 
+    "Total Mileage for Area or Sub-Area: " + totalMileage.toFixed(1) + " NM";
+  
+  let tableHTML = `
+    <table class="track-table">
+      <tr>
+        <th>Search Segment/SRU</th>
+        <th>Search Distance (NM)</th>
+        <th>Track Portion of Sub-Area</th>
+        <th>SRU Search Segment Length (NM)</th>
+        <th>Number of Tracks</th>
+        <th class="full-tracks-column">Number of Full Tracks</th>
+      </tr>
+  `;
+  
+  for(let aircraft of aircraftDistances) {
+    const percentage = ((aircraft.distance / totalMileage) * 100);
+    const segmentLength = (percentage / 100) * searchAreaLength;
+    const numberOfTracks = aircraft.distance / segmentLength;
+    
+    let fullTracks;
+    const decimalPart = numberOfTracks % 1;
+    if (decimalPart >= 0.85) {
+      fullTracks = Math.ceil(numberOfTracks);
+    } else {
+      fullTracks = Math.floor(numberOfTracks);
+    }
+    
+    tableHTML += `
+      <tr>
+        <td>${aircraft.designation}</td>
+        <td>${aircraft.distance.toFixed(1)}</td>
+        <td>${percentage.toFixed(1)}%</td>
+        <td>${segmentLength.toFixed(1)}</td>
+        <td>${numberOfTracks.toFixed(2)}</td>
+        <td class="full-tracks-column">${fullTracks}</td>
+      </tr>
+    `;
+  }
+  
+  tableHTML += '</table>';
+  document.getElementById("trackTable").innerHTML = tableHTML;
+}
+
+function updateAircraftTitle(aircraftNum) {
+  const titleElement = document.getElementById('aircraftTitle' + aircraftNum);
+  const designation = document.getElementById('sa/sru' + aircraftNum).value;
+  titleElement.textContent = designation || `Aircraft ${aircraftNum}`;
+}
+
+let aircraftCount = 1;
+
+function removeAircraft(aircraftNum) {
+  const element = document.getElementById('aircraft' + aircraftNum);
+  element.remove();
+  updateTotalAndTable();
+}
+
+function addAircraft() {
+  aircraftCount++;
+  const newAircraftNumber = aircraftCount;
+  
+  const newSection = document.createElement('div');
+  newSection.id = 'aircraft' + newAircraftNumber;
+  newSection.className = 'aircraft-section';
+  newSection.innerHTML = `
+    <div class="aircraft-header">
+      <h3 id="aircraftTitle${newAircraftNumber}" class="aircraft-title"><b>Aircraft ${newAircraftNumber}</b></h3>
+      <button onclick="removeAircraft(${newAircraftNumber})" class="remove-btn">×</button>
+    </div>
+    <input type="text" id="sa/sru${newAircraftNumber}" placeholder="Search Segment and SRU Designation">
+    <p>In order from LKP to destination</p>
+    <input type="number" id="sw${newAircraftNumber}" placeholder="Corrected Sweep Width">
+    <p>From ESW Calculator or ICAO Manual Data</p>
+    <input type="number" id="speed${newAircraftNumber}" placeholder="Search Craft Speed (knots)" step="1"><br>
+    <br>
+    <input type="number" id="fuel${newAircraftNumber}" placeholder="Fuel Endurance" step="0.1"><br>
+    <br>
+    <input type="number" id="daylight${newAircraftNumber}" placeholder="Daylight Endurance" step="0.1"><br>
+    <br>
+    <input type="number" id="observer${newAircraftNumber}" placeholder="Observer Endurance" step="0.1"><br>
+    <p id="searchEndurance${newAircraftNumber}" style="display: none; font-weight: bold;"></p>
+    <p id="searchDistance${newAircraftNumber}" style="display: none; font-weight: bold;"></p>
+  `;
+  
+  document.getElementById('aircraftContainer').appendChild(newSection);
+  
+  document.getElementById("sa/sru" + newAircraftNumber).addEventListener("input", () => {
+    updateAircraftTitle(newAircraftNumber);
+    updateTotalAndTable();
+  });
+  document.getElementById("fuel" + newAircraftNumber).addEventListener("input", () => calculateEndurance(newAircraftNumber));
+  document.getElementById("daylight" + newAircraftNumber).addEventListener("input", () => calculateEndurance(newAircraftNumber));
+  document.getElementById("observer" + newAircraftNumber).addEventListener("input", () => calculateEndurance(newAircraftNumber));
+  document.getElementById("speed" + newAircraftNumber).addEventListener("input", () => calculateEndurance(newAircraftNumber));
+}
+
+window.addEventListener("load", function() {
+  document.getElementById("fltleg").addEventListener("input", updateSearchAreaLength);
+  document.getElementById("saleg").addEventListener("input", handleSalegInput);
+  
+  document.getElementById("sa/sru1").addEventListener("input", () => {
+    updateAircraftTitle(1);
+    updateTotalAndTable();
+  });
+  document.getElementById("fuel1").addEventListener("input", () => calculateEndurance("1"));
+  document.getElementById("daylight1").addEventListener("input", () => calculateEndurance("1"));
+  document.getElementById("observer1").addEventListener("input", () => calculateEndurance("1"));
+  document.getElementById("speed1").addEventListener("input", () => calculateEndurance("1"));
+})
+</script>
+
+<style>
+#aircraftContainer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  margin-top: 20px;
+}
+
+.aircraft-section {
+  flex: 0 1 300px;
+  padding: 15px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  background-color: #f9f9f9;
+  position: relative;
+}
+
+.aircraft-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.aircraft-title {
+  margin: 0;
+}
+
+.remove-btn {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #666;
+  padding: 0 5px;
+  line-height: 1;
+}
+
+.remove-btn:hover {
+  color: #ff0000;
+}
+
+.aircraft-section input {
+  width: 100%;
+  padding: 5px;
+  margin: 5px 0;
+}
+
+#addAircraftBtn {
+  margin-top: 20px;
+}
+
+#totalMileageContainer {
+  margin-top: 20px;
+  padding: 15px;
+  background-color: #e9ecef;
+  border-radius: 8px;
+  text-align: center;
+  font-size: 1.2em;
+}
+
+.track-table {
+  width: 100%;
+  margin-top: 15px;
+  border-collapse: collapse;
+  background-color: white;
+}
+
+.track-table th, .track-table td {
+  border: 1px solid #ddd;
+  padding: 8px;
+  text-align: center;
+}
+
+.track-table th {
+  background-color: #f2f2f2;
+}
+
+.track-table tr:nth-child(even) {
+  background-color: #f9f9f9;
+}
+
+.full-tracks-column {
+  background-color: #ffebeb !important;
+}
+
+tr:nth-child(even) .full-tracks-column {
+  background-color: #ffe0e0 !important;
+}
+
+.track-table th.full-tracks-column {
+  background-color: #ffd6d6 !important;
+}
+</style>
+
+<input type="number" id="fltleg" placeholder="Length of Flight">
+<p>LKP to destinator OR sub-area boundaries</p>
+<input type="number" id="saleg" placeholder="Length of Search Area">
+<p>Add 10NM if sub-area contains LKP or destination</p>
+
+<!-- Hidden content starts here -->
+<div id="hiddenContent" style="display: none;">
+<br>
+<h3><b>EFFORT AND SEARCH SET-UP</b></h3>
+<div id="aircraftContainer">
+  <div id="aircraft1" class="aircraft-section">
+    <div class="aircraft-header">
+      <h3 id="aircraftTitle1" class="aircraft-title"><b>Aircraft 1</b></h3>
+      <button onclick="removeAircraft(1)" class="remove-btn">×</button>
+    </div>
+    <input type="text" id="sa/sru1" placeholder="Search Segment and SRU Designation">
+    <p>In order from LKP to destination</p>
+    <input type="number" id="sw1" placeholder="Corrected Sweep Width">
+    <p>From ESW Calculator or ICAO Manual Data</p>
+    <input type="number" id="speed1" placeholder="Search Craft Speed (knots)" step="1"><br>
+    <br>
+    <input type="number" id="fuel1" placeholder="Fuel Endurance" step="0.1"><br>
+    <br>
+    <input type="number" id="daylight1" placeholder="Daylight Endurance" step="0.1"><br>
+    <br>
+    <input type="number" id="observer1" placeholder="Observer Endurance" step="0.1"><br>
+    <p id="searchEndurance1" style="display: none; font-weight: bold;"></p>
+    <p id="searchDistance1" style="display: none; font-weight: bold;"></p>
+  </div>
+</div>
+
+<button id="addAircraftBtn" onclick="addAircraft()" class="mt-4 p-2 bg-blue-500 text-white rounded">
+  Add Additional Aircraft
+</button>
+
+<!-- Total Mileage Display -->
+<div id="totalMileageContainer">
+  <p id="totalMileage" style="font-weight: bold;"></p>
+  <div id="trackTable"></div>
+</div>
+</div>
+</body>
+</html>
